@@ -20,7 +20,6 @@ def parse_arguments(shell_input):
 
 def main():
     while(True):
-
         shell_input = input(shell_prompt)
         args = parse_arguments(shell_input)
 
@@ -50,10 +49,8 @@ def main():
                 os.execvp(args[0], args)
             except Exception as e:
                 print(e)
-                os._exit(1)
-        else:
-            if not background:
-                os.wait()
+        elif pid > 0 and not background:
+            os.waitpid(pid, 0)
     
     sys.exit(0)
 
