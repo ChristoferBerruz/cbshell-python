@@ -172,6 +172,7 @@ def main():
                  os.execvp(args[0], args)
             except Exception as e:
                 print(e)
+                os._exit(127) # Forcing exit if something failed
         elif pid > 0 and not background:
             os.waitpid(pid, 0)
             
