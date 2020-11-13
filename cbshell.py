@@ -2,14 +2,17 @@
 
 import os
 import sys
+from sys import stdout, stderr
+from io import StringIO
 from os.path import isfile, join
 
 
 class Options(object):
 
-    def __init__(self):
+    def __init__(self, parent_path, filename_list):
         self._dicc = {}
         self._current_n = 1
+        self.add_list(parent_path, filename_list)
 
     def insert(self, parent_path, file_name):
         exec_path = join(parent_path, file_name)
@@ -59,13 +62,19 @@ def get_execfiles(path):
     execfiles = list(filter(filter_execfiles, items))
     return execfiles
 
-def selection():
+def selection_system_calls():
     current_path = os.getcwd()
     execfiles = get_execfiles(current_path)
+    args = create_and_handle_options(current_path, execfiles)
+    return args
 
-    options = Options()
-    options.add_list(current_path, execfiles)
 
+def create_and_handle_options(path, execfiles):
+
+    if execfiles == []:
+        raise Exception("No executables files available.")
+
+    options = Options(path, execfiles)
     print(options)
     args = input("Please select an option (with arguments if needed): ")
 
@@ -76,13 +85,54 @@ def selection():
     except Exception as e:
         raise Exception("Option should be a number.")
     
-    exec_path, _ = options.get(option_number)
+    exec_path, filename  = options.get(option_number)
     args[0] = exec_path
     return args
 
 
+def selection_using_bash(maxdepth):
+    pipein, pipeout = os.pipe()
+    pid = os.fork()
+
+    execfiles = []
+    if pid < 0:
+        print("Could not fork a process.")
+    elif pid == 0:
+        try:
+            shell_input = "find ./ -maxdepth {} -executable -type f".format(maxdepth)
+            args = parse_arguments(shell_input)
+
+            os.close(pipein)
+            os.dup2(pipeout, 1) # Child stdout can be accessed by parent
+
+            os.execvp(args[0], args)
+        except Exception as e:
+            print(e)
+            os._exit(127) # To force exit if something went wrong
+    elif pid > 0:
+        os.waitpid(pid, 0)
+        os.close(pipeout)
+        with os.fdopen(pipein, "r") as f:
+            remove_endlines = lambda word: word.rstrip('\n').replace('./', '')
+            execfiles = sorted(list(map(remove_endlines, f.readlines())))
+    
+    args = create_and_handle_options('.', execfiles)
+    return args
+
+def get_max_depth(args):
+    try:
+        param = args[1]
+        if param == '-maxdepth':
+            maxdepth = int(args[2])
+            return maxdepth if maxdepth >= 0 else 1
+    except Exception as e:
+        # Default depth
+        return 1
+
+
 def main():
     while(True):
+
         shell_input = input(shell_prompt)
         args = parse_arguments(shell_input)
 
@@ -95,9 +145,10 @@ def main():
         if args[0] == 'exit':
             break
 
-        if args[0] == "selection":
+        if args[0] == 'selection':
             try:
-                args = selection()
+                maxdepth = get_max_depth(args)
+                args = selection_using_bash(maxdepth)
             except Exception as e:
                 print(e)
                 continue
@@ -118,11 +169,12 @@ def main():
             print("Could not fork a process.")
         elif pid == 0:
             try:
-                os.execvp(args[0], args)
+                 os.execvp(args[0], args)
             except Exception as e:
                 print(e)
         elif pid > 0 and not background:
             os.waitpid(pid, 0)
+            
     
     sys.exit(0)
 
