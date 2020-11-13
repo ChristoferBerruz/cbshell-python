@@ -36,10 +36,11 @@ class Options(object):
         Parameters:
             - option_number: int, which record number to retrieve
         """
-        if 0<= option_number <= self._current_n:
+        if 0< option_number < self._current_n:
             return self._dicc[option_number]
         else:
-            raise Exception("Option is not valid")
+            message = error("Option is not valid")
+            raise Exception(message)
 
     def add_list(self, parent_path, filename_list):
         """Adds a list of files into the dictionary
@@ -59,9 +60,15 @@ class Options(object):
         return res
 
 
-WARNING_C = '\033[93m'
+GREEN_C = '\033[92m'
 END_C = '\033[0m'
-shell_prompt = WARNING_C + 'cbshell % ' + END_C
+shell_prompt = GREEN_C + 'cbshell % ' + END_C
+
+def warning(message):
+    return '\033[93m' + message + '\033[0m'
+
+def error(message):
+    return '\033[91m' + message + '\033[0m'
 
 def parse_arguments(shell_input):
     
@@ -97,7 +104,8 @@ def selection_system_calls():
 def create_and_handle_options(path, execfiles):
 
     if execfiles == []:
-        raise Exception("No executables files available.")
+        message = warning("No executables files available.")
+        raise Exception(message)
 
     options = Options(path, execfiles)
     print(options)
@@ -108,7 +116,8 @@ def create_and_handle_options(path, execfiles):
     try:
         option_number = int(args[0])
     except Exception as e:
-        raise Exception("Option should be a number.")
+        message = error("Option should be a number.")
+        raise Exception(message)
     
     exec_path, filename  = options.get(option_number)
     args[0] = exec_path
@@ -152,14 +161,24 @@ def selection_using_bash(maxdepth):
 
 
 def get_max_depth(args):
+    if len(args) == 1:
+        return 1
+    
+    
+    maxdepth = 1
     try:
         param = args[1]
         if param == '-maxdepth':
-            maxdepth = int(args[2])
-            return maxdepth if maxdepth >= 0 else 1
+            val = int(args[2])
+            maxdepth = val if val >= 0 else maxdepth
+        else:
+            message = warning("Only allowed argument is -maxdepth")
+            print(message)
     except Exception as e:
-        # Default depth
-        return 1
+        message = warning("Value for -maxdepth should be a non-negative integer.")
+        print(message)
+    
+    return maxdepth
 
 
 def main():
