@@ -8,28 +8,51 @@ from os.path import isfile, join
 
 
 class Options(object):
-
+    """Class that manages files available for selection feature
+    It uses a dictionary as its main data structure
+    """
     def __init__(self, parent_path, filename_list):
+        """Constructor
+        Parameters:
+            - parent_path: str representing a valid path to the file
+            - filename_list: list[str] full filename without parent path
+        """
         self._dicc = {}
         self._current_n = 1
         self.add_list(parent_path, filename_list)
 
-    def insert(self, parent_path, file_name):
-        exec_path = join(parent_path, file_name)
-        self._dicc[self._current_n] = (exec_path, file_name)
+    def insert(self, parent_path, filename):
+        """Inserts an record into the options
+        Parameters:
+            - parent_path: str representing a valid path to the file
+            - filename: str representing the full filename without parent path
+        """
+        exec_path = join(parent_path, filename)
+        self._dicc[self._current_n] = (exec_path, filename)
         self._current_n += 1
     
     def get(self, option_number):
+        """Gets a record of the dictionary
+        Parameters:
+            - option_number: int, which record number to retrieve
+        """
         if 0<= option_number <= self._current_n:
             return self._dicc[option_number]
         else:
             raise Exception("Option is not valid")
 
     def add_list(self, parent_path, filename_list):
+        """Adds a list of files into the dictionary
+        Parameters:
+            - parent_path: str representing a valid path to the file
+            - filename_list: list[str] full filename without parent path
+        """
         for filename in filename_list:
             self.insert(parent_path, filename)
 
     def __str__(self):
+        """String representation of objects dictionary
+        """
         res = ''
         for key, (exec_path, file_name) in self._dicc.items():
             res += '{:3d}    {}\n'.format(key, file_name)
@@ -56,11 +79,13 @@ def is_executable(file_path):
     """
     return os.access(file_path, os.X_OK)
 
+
 def get_execfiles(path):
     items = os.listdir(path)
     filter_execfiles = lambda item: isfile(join(path, item)) and is_executable(join(path, item))
     execfiles = list(filter(filter_execfiles, items))
     return execfiles
+
 
 def selection_system_calls():
     current_path = os.getcwd()
@@ -91,7 +116,7 @@ def create_and_handle_options(path, execfiles):
 
 
 def selection_using_bash(maxdepth):
-    pipein, pipeout = os.pipe()
+    pipein, pipeout = os.pipe() # Allows retrieval of find command output
     pid = os.fork()
 
     execfiles = []
@@ -102,8 +127,10 @@ def selection_using_bash(maxdepth):
             shell_input = "find ./ -maxdepth {} -executable -type f".format(maxdepth)
             args = parse_arguments(shell_input)
 
+            # Pipes' read and write are mutually exclusive
+            # we must close the read before writting and vice-versa
             os.close(pipein)
-            os.dup2(pipeout, 1) # Child stdout can be accessed by parent
+            os.dup2(pipeout, 1) # Substituting stdout for pipeout
 
             os.execvp(args[0], args)
         except Exception as e:
@@ -111,13 +138,18 @@ def selection_using_bash(maxdepth):
             os._exit(127) # To force exit if something went wrong
     elif pid > 0:
         os.waitpid(pid, 0)
+
         os.close(pipeout)
+        # fdopen() works similar to open but its input is a file descriptor
         with os.fdopen(pipein, "r") as f:
+            # eliminating a trailing new line character
+            # and getting rid of ./ part of the filename
             remove_endlines = lambda word: word.rstrip('\n').replace('./', '')
             execfiles = sorted(list(map(remove_endlines, f.readlines())))
     
     args = create_and_handle_options('.', execfiles)
     return args
+
 
 def get_max_depth(args):
     try:
